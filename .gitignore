@@ -1,5 +1,6 @@
 *.lib 
 *.o
 *.kdev4
+*.out
 allocatortest
 
