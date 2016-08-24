@@ -15,7 +15,10 @@ int main(void)
     _a_heapsize = MEMSIZE;
 
     uint32_t *mem[4];
-
+    
+    _amalloc(0);
+    _printAllocs();
+    //return 0;
     mem[0] = (uint32_t*)_amalloc(100);
     mem[1] = (uint32_t*)_amalloc(1024);
     mem[2] = (uint32_t*)_amalloc(120);

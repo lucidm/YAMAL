@@ -52,14 +52,14 @@ static void _tieAdjacent(t_MemNode *node)
  */
 t_MemNode *_findSmallestFit(size_t size)
 {
-    uint32_t foundsize = _a_heapsize;
+    uint32_t foundsize = _a_heapsize + 1;
     t_MemNode *node = firstblock, *found = NULL;
 
     size += sizeof(t_MemNode);
 
     while(node)
     {
-        if (node->free == BLOCK_FREE && size < node->size && node->size < foundsize)
+        if (node->free == BLOCK_FREE && size <= node->size && node->size < foundsize)
         {
             found = node;
             foundsize = node->size;
@@ -83,6 +83,21 @@ void *_amalloc(size_t size)
 {
     uint32_t sizediff;
     t_MemNode *node, *nodenext;
+    
+    if(size == 0)
+    {
+      if (firstblock == NULL)
+      {
+        firstblock = (t_MemNode*) ((uint32_t)_a_heapstart);
+        firstblock->next = NULL;
+        firstblock->size = _a_heapsize;
+        firstblock->free = BLOCK_FREE;
+	lastblock = firstblock;
+	return (void*)(((uint32_t)firstblock) + sizeof(t_MemNode));
+      }
+      else
+	return NULL;
+    }
 
     if (firstblock == NULL)
     {
@@ -96,7 +111,7 @@ void *_amalloc(size_t size)
 
         node = (t_MemNode*) ((((uint32_t)firstblock) + firstblock->size));
         node->next = NULL;
-        node->size = (_a_heapsize - (firstblock->size + sizeof(t_MemNode)));
+        node->size = (_a_heapsize - firstblock->size);
         node->free = BLOCK_FREE;
         firstblock->next = node;
 	lastblock = node;
@@ -139,6 +154,8 @@ void *_amalloc(size_t size)
  */
 void _afree(void *mem)
 {
+    if (!mem) return;
+    
     t_MemNode *node = (t_MemNode*) ((uint8_t*)mem - sizeof(t_MemNode));
     t_MemNode *ntmp = node;
 
@@ -161,11 +178,11 @@ void _printAllocs(void)
 
     while(node)
     {
-        PRINT("#%d Address: 0x%08X Size: %u/%u %s\n", cnt,
+        PRINT("#%d\tAddress: 0x%08X\tSize: %u/%u\t%s\n", cnt,
                                                         (uint32_t)node,
                                                         (node->size - sizeof(t_MemNode)),
                                                         node->size,
-                                                        node->free ? "" : "Free");
+                                                        node->free == BLOCK_FREE ? "Free" : "Used");
         if (node->free == BLOCK_FREE)
             freesize += (node->size - sizeof(t_MemNode));
         else
@@ -180,7 +197,7 @@ void _printAllocs(void)
         node = node->next;
     }
     PRINT("Summary: Memory size: %u in %d blocks, of which %d are"
-           " free and %d are allocated.\n\tFree mem %u, allocated %u.\n\tFirst block 0x%08X, last block 0x%08X\n", totsize + sizeof(t_MemNode),
+           " free and %d are allocated.\n\tFree mem %u, allocated %u.\n\tFirst block 0x%08X, last block 0x%08X\n\n", totsize,
                                                                       cnt,
                                                                       freecnt,
                                                                       alloccnt, freesize, allocsize, firstblock, lastblock);

@@ -53,7 +53,7 @@ extern size_t _a_heapsize;
 /*! \def BLOCK_FREE
  * \brief Marking of block which is free and available for allocation
  */
-#define BLOCK_FREE 1
+#define BLOCK_FREE 0
 
 typedef struct _mem_node t_MemNode;
 
