@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <malloc.h>
-#include "allocator.h"
+#include <allocator.h>
 
 #define MEMSIZE (16*1024)
 

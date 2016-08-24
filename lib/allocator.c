@@ -11,7 +11,7 @@
  * 
  */
 
-#include "allocator.h"
+#include <allocator.h>
 
 #ifdef ALLOCATOR_USEREPORT
 #include <stdio.h>
