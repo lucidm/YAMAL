@@ -11,9 +11,12 @@
 
 /*! \def ALLOCATOR_USEREPORT
  * \brief Comment this def out if don't want _printAllocs() function
- * in your code.
+ * in your code. Or add -DALLOCATOR_USEREPORT
  */
-#define ALLOCATOR_USEREPORT
+//#define ALLOCATOR_USEREPORT
+
+#define OFFSET(block, offset) ((uintptr_t)block + (offset))
+#define SSIZE (sizeof(t_MemNode))
 
 #ifdef _cplusplus
 extern "C" {
@@ -69,17 +72,27 @@ typedef struct _mem_node
  */
 void *_amalloc(size_t size);
 
-/*! \fn void _afree(void *mem)
+/*! \fn void _afree(void *ptr)
  * \brief Memory free function.
  */
-void _afree(void *mem);
+void _afree(void *ptr);
 
-#ifdef ALLOCATOR_USEREPORT
+/*! \fn void *_arealloc(void *ptr, size_t size)
+ * \brief Realloc previously allocated memory
+ */
+void *_arealloc(void *ptr, size_t size);
+
+/*! \fn void _acopymem(void *dest, void *ptr, size_t amount)
+ * \brief copy memory block form source to destination
+ *        can be overwritten for performance reasons.
+ */
+void __attribute__((weak)) _acopymem(void *dest, void *ptr, size_t amount);
+
 /*! \fn void _printAllocs(void)
  * \brief Prints current memory usage and statistics.
  */
 void _printAllocs(void);
-#endif
+
 #ifdef _cplusplus
 }
 #endif
