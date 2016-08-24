@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <malloc.h>
-
 #include "allocator.h"
 
 #define MEMSIZE (16*1024)
@@ -42,16 +41,6 @@ int main(void)
     _amalloc(150);
     _printAllocs();
     
-   /* mem[2] = (uint32_t*)a_malloc(60);
-    printNodes();
-
-    a_free(mem[3]);
-
-    a_free(mem[1]);
-    printNodes();
-    a_free(mem[0]);
-    printNodes();
-*/
     free(_a_heapstart);
     return 0;
 }

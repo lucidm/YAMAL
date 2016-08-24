@@ -4,9 +4,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/*! \def ALLOCATOR_ALIGNMENT
+ * \brief Alignment of memory addres
+ */
 #define ALLOCATOR_ALIGNMENT 4
+
+/*! \def ALLOCATOR_USEREPORT
+ * \brief Comment this def out if don't want _printAllocs() function
+ * in your code.
+ */
 #define ALLOCATOR_USEREPORT
 
+#ifdef _cplusplus
+extern "C" {
+#endif
+  
 //Below are two variables declared, which should be defined as globals in code using this lib,
 //they cannot be declared as static and should be initialized prior to
 //first use of _amalloc(...) function.
@@ -29,12 +41,14 @@ extern size_t _a_heapsize;
  */ 
 #define ALIGN(number) ((number + ALLOCATOR_ALIGNMENT) & (~ALLOCATOR_ALIGNMENT))
 
+#ifdef ALLOCATOR_USEREPORT
 /*! \def PRINT
  * \brief Change this to something else which will work like printf
  * if you're using this lib in embedded env, like "trace_printf" for
  * example. Used in _printAllocs().
  */
 #define PRINT printf
+#endif
 
 /*! \def BLOCK_FREE
  * \brief Marking of block which is free and available for allocation
@@ -65,5 +79,8 @@ void _afree(void *mem);
  * \brief Prints current memory usage and statistics.
  */
 void _printAllocs(void);
+#endif
+#ifdef _cplusplus
+}
 #endif
 #endif
