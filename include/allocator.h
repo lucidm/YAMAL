@@ -21,7 +21,7 @@
 #ifdef _cplusplus
 extern "C" {
 #endif
-  
+
 //Below are two variables declared, which should be defined as globals in code using this lib,
 //they cannot be declared as static and should be initialized prior to
 //first use of _amalloc(...) function.
@@ -38,10 +38,10 @@ extern size_t _a_heapsize;
 
 /*! \def ALIGN(to, number)
  * \brief Return a "number" aligned to value "a"
- * 
+ *
  * Used to align addresses of memory with given alignment if
  * used architecture requires it.
- */ 
+ */
 #define ALIGN(number) ((number + ALLOCATOR_ALIGNMENT) & (~ALLOCATOR_ALIGNMENT))
 
 #ifdef ALLOCATOR_USEREPORT
@@ -68,7 +68,7 @@ typedef struct _mem_node
 } __attribute__((packed)) t_MemNode;
 
 /*! \fn void *_amalloc(size_t size)
- * \brief Memory allocation function. 
+ * \brief Memory allocation function.
  */
 void *_amalloc(size_t size);
 
@@ -91,7 +91,7 @@ void __attribute__((weak)) _acopymem(void *dest, void *ptr, size_t amount);
 /*! \fn void _printAllocs(void)
  * \brief Prints current memory usage and statistics.
  */
-void _printAllocs(void);
+void _printAllocs(uintptr_t *ptr);
 
 #ifdef _cplusplus
 }

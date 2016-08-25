@@ -1,13 +1,14 @@
 CC=gcc
-CFLAGS=-g -pg -Og -I./ -I./include
+CFLAGS=-g -pg -O0 -I./ -I./include
 LFLAGS=
-LIBOBJS=lib/allocator.o 
+LIBOBJS=lib/allocator.o
+EXAMPLES=simple heavy
 
 .PHONY: all clean $(LIBOBJS)
 
-all: simple
+all: $(EXAMPLES)
 
-simple: $(LIBOBJS) ./examples/simple.c
+$(EXAMPLES): %: ./examples/%.c $(LIBOBJS)
 	$(CC) $(CFLAGS) $^ -o $@ $(LFLAGS)
 
 $(LIBOBJS): %.o: %.c
