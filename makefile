@@ -1,22 +1,19 @@
 CC=gcc
 CFLAGS=-g -pg -Og -I./ -I./include
 LFLAGS=
-LIBOBJS=./lib/allocator.o 
-EXSOBJS=./examples/simple.o
-EXAMPLES=simple
+LIBOBJS=lib/allocator.o 
 
-all: $(EXAMPLES)
+.PHONY: all clean $(LIBOBJS)
 
-$(EXAMPLES): $(LIBOBJS) $(EXSOBJS)
+all: simple
+
+simple: $(LIBOBJS) ./examples/simple.c
 	$(CC) $(CFLAGS) $^ -o $@ $(LFLAGS)
-
-$(EXOSBJS): %.o: %.c 
-	$(CC) $(CFLAGS) $(LFLAGS) -c $< -o $@
 
 $(LIBOBJS): %.o: %.c
 	$(CC) $(CFLAGS) $(LFLAGS) -DALLOCATOR_USEREPORT -c $< -o $@
 
 clean:
-	rm -f $(LIBOBJS) $(EXSOBJS) $(EXAMPLES) *.out
+	rm -f $(LIBOBJS) $(EXAMPLES) *.out
 
-.PHONY: all clean
+
