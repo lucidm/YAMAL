@@ -72,15 +72,15 @@ typedef struct _mem_node
  */
 void *_amalloc(size_t size);
 
-/*! \fn void _afree(void *ptr)
+/*! \fn void _afree(uintptr_t *ptr)
  * \brief Memory free function.
  */
-void _afree(void *ptr);
+void _afree(uintptr_t *ptr);
 
-/*! \fn void *_arealloc(void *ptr, size_t size)
+/*! \fn void *_arealloc(uintptr_t *ptr, size_t size)
  * \brief Realloc previously allocated memory
  */
-void *_arealloc(void *ptr, size_t size);
+void *_arealloc(uintptr_t *ptr, size_t size);
 
 /*! \fn void _acopymem(void *dest, void *ptr, size_t amount)
  * \brief copy memory block form source to destination
