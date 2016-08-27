@@ -64,11 +64,12 @@ t_MemNode *guard(t_MemNode *node, const char* msg, uint32_t cnt)
  * \brief Naive implementation of function copying memory block.
  * Can be reimplementend in user library for better performance.
  */
-void __attribute__((weak)) _acopymem(void *dest, void *ptr, size_t amount)
+void __attribute__((weak)) _acopymem(t_MemNode *dest, t_MemNode *src)
 {
-  for(size_t i=0; i < amount; i++)
+  size_t s = ((dest->size - SSIZE) > (src->size - SSIZE) ? (src->size - SSIZE) : (dest->size - SSIZE));
+  for(size_t i=0; i < s; i++)
   {
-    ((char*)dest)[i] = (*(char*)ptr + i);
+    ((char*)dest+SSIZE)[i] = ((char*)src+SSIZE)[i];
   }
 }
 
@@ -312,10 +313,15 @@ void *_arealloc(uintptr_t *ptr, size_t size)
   if (ptr == NULL)
     return _amalloc(size);
 
+  nextnode = node;
   size += SSIZE;
 
+  if (size < node->size)
+      return OFFSET(node, SSIZE);
+
   //if next block is free & we fit in joined blocks
-  nextnode = guard(node, __func__, __LINE__);
+  guard(node, __func__, __LINE__);
+  nextnode = node->next;
   if(nextnode && nextnode->free == BLOCK_FREE)
   {
       tmpsize = node->size;
@@ -333,16 +339,15 @@ void *_arealloc(uintptr_t *ptr, size_t size)
   if (nextnode)
   {
     nextnode = (t_MemNode*)OFFSET(nextnode, -SSIZE);
-    guard(nextnode, __func__, __LINE__);
-    _acopymem(((char*)OFFSET(nextnode, SSIZE)), ((char*)OFFSET(node, SSIZE)), node->size);
-    node = (t_MemNode*)OFFSET(node, SSIZE);
-    _afree((uintptr_t*)node);
-    nextnode->free = ~BLOCK_FREE;
-    return (void*)OFFSET(nextnode, SSIZE);
-  } else
-      return NULL;
 
-  return (void*)OFFSET(node, SSIZE);
+    guard(nextnode, __func__, __LINE__);
+    _acopymem(nextnode, node);
+
+    _afree((uintptr_t*)OFFSET(node, SSIZE));
+    nextnode->free = ~BLOCK_FREE;
+  }
+
+  return (nextnode ? (void*)OFFSET(nextnode, SSIZE) : NULL);
 }
 
 /**

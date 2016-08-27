@@ -86,7 +86,7 @@ void *_arealloc(uintptr_t *ptr, size_t size);
  * \brief copy memory block form source to destination
  *        can be overwritten for performance reasons.
  */
-void __attribute__((weak)) _acopymem(void *dest, void *ptr, size_t amount);
+void __attribute__((weak)) _acopymem(t_MemNode *dest, t_MemNode *src);
 
 /*! \fn void _printAllocs(void)
  * \brief Prints current memory usage and statistics.

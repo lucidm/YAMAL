@@ -3,13 +3,14 @@
 #include <stdio.h>
 #include <malloc.h>
 #include <allocator.h>
+#include <time.h>
 
 #define MEMSIZE (16*1024)
 
-#define MAXALLOCATIONS 10
+#define MAXALLOCATIONS 25
 #define MAXSIZE (MEMSIZE / MAXALLOCATIONS)
 
-char* allocations[MAXALLOCATIONS];
+uintptr_t* allocations[MAXALLOCATIONS];
 uint16_t rn[MAXALLOCATIONS];
 
 int randr(int min, int max)
@@ -36,9 +37,12 @@ void shuffle()
 
 uint8_t *_a_heapstart;
 size_t _a_heapsize;
+uint32_t s = 0, ccnt = 0;
+uintptr_t *p, *a;
 
 int main(void)
 {
+    srand(time(NULL));
     _a_heapstart = malloc(MEMSIZE);
     _a_heapsize = MEMSIZE;
 
@@ -47,48 +51,55 @@ int main(void)
     _amalloc(0);
     _printAllocs(NULL);
 
-    for(int i=0; i<MAXALLOCATIONS; i++)
+    while(ccnt < 8)
     {
-	allocations[i] = _amalloc(randr(10,MAXSIZE));
-        if(allocations[i] == NULL)
-            printf("Cannot alloc block %u\n", i);
-    }
-_printAllocs(NULL);
-    for(int i=0; i<MAXALLOCATIONS/2; i++)
-    {
-        _afree(allocations[rn[i]]);
-        allocations[rn[i]] = NULL;
-    }
-_printAllocs(NULL);
-
-    uint32_t s = _a_heapsize;
-    uintptr_t *p;
-    for(int i=MAXALLOCATIONS/2; i<MAXALLOCATIONS; i++)
-    {
-        int k = rn[i], r = randr(10,MAXSIZE);
-        printf("------------------------------------------------\n");
-        p = allocations[k];
-        _printAllocs(p);
-        allocations[k] = _arealloc(allocations[k], r);
-        _printAllocs(p);
-        _printAllocs(allocations[k]);
-
-
-        printf("Tried realloc block %d-%d size %u", i, k, r);
-        printf(" orginial 0x%08LX ", OFFSET(p, -SSIZE));
-        printf(" realocated 0x%08LX\n\n", OFFSET(allocations[k], -SSIZE));
-
-        printf("------------------------------------------------\n");
-        if(allocations[k] == NULL)
+        printf("Trying to alloc %d blocks with various size\n", MAXALLOCATIONS);
+        for(int i=0; i<MAXALLOCATIONS; i++)
         {
-            printf("Cannot realloc block %u with size %u\n", i, r);
-            s = r;
+            s = randr(10,MAXSIZE);
+            allocations[i] = _amalloc(s);
+            if(allocations[i] == NULL)
+                printf("Cannot alloc block %u %u\n", i, s);
         }
+        _printAllocs(NULL);
+        printf("Press <enter> to realloc blocks\n");
+        getchar();
+
+        printf("Trying realloc allocated blocks with various size\n");
+        for(int i=0; i<MAXALLOCATIONS; i++)
+        {
+            s = randr(10,MAXSIZE);
+            p = a =_arealloc(allocations[i], s);
+            if(p)
+            {
+                if (p == allocations[i])
+                {
+                    printf("Same block reused\n");
+                } else if (p!=NULL && p!=allocations[i])
+                {
+                    printf("Old address 0x%08LX, new address 0x%08LX\n", OFFSET(allocations[i], -SSIZE), OFFSET(p, -SSIZE));
+                    _printAllocs(a);
+                    _printAllocs(allocations[i]);
+                    _printAllocs(p);
+                    allocations[i] = p;
+                }
+            }else
+                printf("Cannot realloc block\n");
+
+        }
+        _printAllocs(NULL);
+        printf("Press <enter> to free all blocks\n");
+        getchar();
+
+        printf("Trying to free all allocated blocks\n");
+        for(int i=0; i<MAXALLOCATIONS; i++)
+            if(allocations[i]) _afree(allocations[i]);
+        ccnt++;
+        _printAllocs(NULL);
+        printf("Press <enter> to continue\n");
+        getchar();
+
     }
-
-    _printAllocs(NULL);
-
-
 
     free(_a_heapstart);
     return 0;
