@@ -28,7 +28,7 @@ t_MemNode *guard(t_MemNode *node, const char* msg, uint32_t cnt)
         while(1);
     }
 
-    if(node && node->size > _a_heapsize)
+    if(node && GET_BLOCKSIZE(node) > _a_heapsize)
     {
         printf("\"%s\" (l.%u) Block 0x%08LX size %u > heap size %u %d!\n", msg, cnt, (uintptr_t)node, node->size, _a_heapsize);
         _printAllocs(NULL);
@@ -60,13 +60,19 @@ t_MemNode *guard(t_MemNode *node, const char* msg, uint32_t cnt)
     return node->next;
 }
 
+uintptr_t _abs(intptr_t v)
+{
+    intptr_t const mask = v >> sizeof(intptr_t) * 8 - 1;
+    return (v + mask) ^ mask;
+}
+
 /**
  * \brief Naive implementation of function copying memory block.
  * Can be reimplementend in user library for better performance.
  */
 void __attribute__((weak)) _acopymem(t_MemNode *dest, t_MemNode *src)
 {
-  size_t s = ((dest->size - SSIZE) > (src->size - SSIZE) ? (src->size - SSIZE) : (dest->size - SSIZE));
+  size_t s = ((GET_BLOCKSIZE(dest) - SSIZE) > (GET_BLOCKSIZE(src) - SSIZE) ? (GET_BLOCKSIZE(src) - SSIZE) : (GET_BLOCKSIZE(dest) - SSIZE));
   for(size_t i=0; i < s; i++)
   {
     ((char*)dest+SSIZE)[i] = ((char*)src+SSIZE)[i];
@@ -87,11 +93,11 @@ void __attribute__((weak)) _acopymem(t_MemNode *dest, t_MemNode *src)
 static t_MemNode *_joinBlocks(t_MemNode *src, t_MemNode *nxt)
 {
   if ((nxt && src->next == nxt) &&
-      ((src->free != BLOCK_FREE && nxt->free == BLOCK_FREE) ||
-       (src->free == BLOCK_FREE && nxt->free == BLOCK_FREE)))
+      ((BLOCK_ISUSED(src) && BLOCK_ISFREE(nxt)) ||
+       (BLOCK_ISFREE(src) && BLOCK_ISFREE(nxt))))
   {
     src->next = nxt->next;
-    src->size += nxt->size;
+    SET_BLOCKSIZE(src, GET_BLOCKSIZE(src) + GET_BLOCKSIZE(nxt));
 
   }
   return src;
@@ -117,14 +123,13 @@ static t_MemNode *_splitBlock(t_MemNode *src, size_t offset)
   if(src && offset > 0)
   {
       size1 = offset + SSIZE;
-      size2 = src->size - (offset + SSIZE);
+      size2 = GET_BLOCKSIZE(src) - (offset + SSIZE);
 
       if (size2 > SSIZE)
       {
-          src->size = size1;
+          SET_BLOCKUSED(src, size1);
           next = (t_MemNode*)OFFSET(src, size1);
-          next->size = size2;
-          next->free = BLOCK_FREE;
+          SET_BLOCKFREE(next, size2);
           next->next = src->next;
           src->next = next;
       }
@@ -148,7 +153,8 @@ static void _tieAdjacent(t_MemNode *start, t_MemNode *node)
 
   while(start != node)
   {
-      ntmp = guard(start, __func__, __LINE__);
+      guard(start, __func__, __LINE__);
+      ntmp = start->next;
       guard(ntmp, __func__, __LINE__);
       if (ntmp == NULL)
       {
@@ -156,7 +162,7 @@ static void _tieAdjacent(t_MemNode *start, t_MemNode *node)
 	break;
       }
 
-      if (start->free == BLOCK_FREE)
+      if (BLOCK_ISFREE(start))
 	 start = _joinBlocks(start, ntmp);
 
       start = start->next;
@@ -181,10 +187,10 @@ t_MemNode *_findSmallestFit(size_t size)
     while(node)
     {
         guard(node, __func__, __LINE__);
-        if (node->free == BLOCK_FREE && size <= node->size && node->size < foundsize)
+        if (BLOCK_ISFREE(node) && size <= GET_BLOCKSIZE(node) && GET_BLOCKSIZE(node) < foundsize)
         {
 	  found = node;
-          foundsize = node->size;
+          foundsize = GET_BLOCKSIZE(node);
         }
         node = node->next;
     }
@@ -216,8 +222,7 @@ void *_amalloc(size_t size)
     {
         firstblock = (t_MemNode*) _a_heapstart;
         firstblock->next = NULL;
-        firstblock->size = _a_heapsize;
-        firstblock->free = BLOCK_FREE;
+        SET_BLOCKFREE(firstblock, _a_heapsize);
         lastblock = firstblock;
         guard(firstblock, __func__, __LINE__);
     }
@@ -237,11 +242,11 @@ void *_amalloc(size_t size)
     guard(node, __func__, __LINE__);
     if (node)
     {
-        sizediff = node->size - size;
+        sizediff = GET_BLOCKSIZE(node) - size;
         if (sizediff > SSIZE)
         {
             node = _splitBlock(node, size);
-            node->free = ~BLOCK_FREE;
+            MARK_BLOCKUSED(node);
             guard(node, __func__, __LINE__);
         }
         return (void*)OFFSET(node, SSIZE);
@@ -268,10 +273,10 @@ void _afree(uintptr_t *mem)
 
     t_MemNode *node = (t_MemNode*) OFFSET(mem, -SSIZE);
 
-    if (node && node->free != BLOCK_FREE)
+    if (node && BLOCK_ISUSED(node))
     {
         guard(node, __func__, __LINE__);
-        node->free = BLOCK_FREE;
+        MARK_BLOCKFREE(node);
         _tieAdjacent(firstblock, node->next);
     }
 
@@ -316,19 +321,19 @@ void *_arealloc(uintptr_t *ptr, size_t size)
   nextnode = node;
   size += SSIZE;
 
-  if (size < node->size)
+  if (size < GET_BLOCKSIZE(node))
       return OFFSET(node, SSIZE);
 
   //if next block is free & we fit in joined blocks
   guard(node, __func__, __LINE__);
   nextnode = node->next;
-  if(nextnode && nextnode->free == BLOCK_FREE)
+  if(nextnode && BLOCK_ISFREE(nextnode))
   {
-      tmpsize = node->size;
-      if ((tmpsize + nextnode->size) > (tmpsize + size))
+      tmpsize = GET_BLOCKSIZE(node);
+      if ((tmpsize + GET_BLOCKSIZE(nextnode)) > (tmpsize + size))
       {
           node = _joinBlocks(node, nextnode);
-           if ((node->size - size) > SSIZE)
+           if ((GET_BLOCKSIZE(node) - size) > SSIZE)
              node = _splitBlock(node, size);
           return (void*)OFFSET(node, SSIZE);
       }
@@ -344,7 +349,7 @@ void *_arealloc(uintptr_t *ptr, size_t size)
     _acopymem(nextnode, node);
 
     _afree((uintptr_t*)OFFSET(node, SSIZE));
-    nextnode->free = ~BLOCK_FREE;
+    MARK_BLOCKUSED(nextnode);
   }
 
   return (nextnode ? (void*)OFFSET(nextnode, SSIZE) : NULL);
@@ -372,26 +377,26 @@ void _printAllocs(uintptr_t *ptr)
 							((char*) OFFSET(node, SSIZE))[0],
                                                         (uintptr_t)node,
                                                         (uintptr_t)node->next,
-                                                        (node->size - sizeof(t_MemNode)),
-                                                        node->size,
-                                                        node->free == BLOCK_FREE ? "Free" : "Used",
+                                                        (GET_BLOCKSIZE(node) - sizeof(t_MemNode)),
+                                                        GET_BLOCKSIZE(node),
+                                                        BLOCK_ISFREE(node) ? "Free" : "Used",
                                                         (cmp ? (cmp == node ? "*" : "") : "")
              );
-        if (node->free == BLOCK_FREE)
+        if (BLOCK_ISFREE(node))
 	{
-            freesize += (node->size - sizeof(t_MemNode));
-	    rawfree += node->size;
+            freesize += (GET_BLOCKSIZE(node) - SSIZE);
+	    rawfree += GET_BLOCKSIZE(node);
 	}
         else
 	{
-            allocsize += (node->size - sizeof(t_MemNode));
-	    rawalloc += node->size;
+            allocsize += (GET_BLOCKSIZE(node) - SSIZE);
+	    rawalloc += GET_BLOCKSIZE(node);
 	}
-	rawtot += node->size;
-	totsize += (node->size - sizeof(t_MemNode));
+	rawtot += GET_BLOCKSIZE(node);
+	totsize += (GET_BLOCKSIZE(node) - SSIZE);
         cnt++;
 
-        if (node->free == BLOCK_FREE)
+        if (BLOCK_ISFREE(node))
             freecnt++;
         else
             alloccnt++;

@@ -58,13 +58,23 @@ extern size_t _a_heapsize;
  */
 #define BLOCK_FREE 0
 
+#define MARK_BLOCKFREE(node) ((node->size > 0) ? (node->size * (-1)) : (node->size))
+#define MARK_BLOCKUSED(node) (_abs(node->size))
+#define SET_BLOCKFREE(node, isize) node->size = -isize
+#define SET_BLOCKUSED(node, isize) node->size = isize
+
+#define BLOCK_ISFREE(node) (node->size < 0)
+#define BLOCK_ISUSED(node) (node->size > 0)
+
+#define GET_BLOCKSIZE(node) (_abs(node->size))
+#define SET_BLOCKSIZE(node, isize) (node->size = (node->size > 0 ? _abs(isize) : isize * (-1)))
+
 typedef struct _mem_node t_MemNode;
 
 typedef struct _mem_node
 {
     t_MemNode *next;
-    size_t  size;
-    uint16_t free;
+    intptr_t  size;
 } __attribute__((packed)) t_MemNode;
 
 /*! \fn void *_amalloc(size_t size)
@@ -92,6 +102,8 @@ void __attribute__((weak)) _acopymem(t_MemNode *dest, t_MemNode *src);
  * \brief Prints current memory usage and statistics.
  */
 void _printAllocs(uintptr_t *ptr);
+
+uintptr_t _abs(intptr_t v);
 
 #ifdef _cplusplus
 }
