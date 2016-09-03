@@ -1,7 +1,7 @@
 /*
  * allocator.c
  * Implementation of malloc/free/realloc/calloc functions
- * All allocated blocks will be increased in size by
+ * All allocated blocks size is increased by
  * header which will make sngly linked list of memory blocks.
  *
  * Author: Jarek Zok <jarekzok@gmail.com>
@@ -12,57 +12,71 @@
  */
 
 #include <allocator.h>
+#include <allocator_lib.h>
+#include <limits.h>
+#include <assert.h>
 
 #ifdef ALLOCATOR_USEREPORT
 #include <stdio.h>
 #endif
 
-static t_MemNode *firstblock = NULL, *lastblock = NULL;
+static t_MemNode *firstblock = NULL;
 
-t_MemNode *guard(t_MemNode *node, const char* msg, uint32_t cnt)
+void _assert_fail(const char *assertion,
+                  const char *file,
+                  unsigned int line,
+                  const char *function,
+                  t_MemNode *node
+                 )
 {
-    if (node == 0xffffffffffffffeeULL)
-    {
-        printf("\"%s\" (l.%u) Block address 0x%08LX out of the heap!\n", msg, cnt, (uintptr_t)node);
-        _printAllocs(NULL);
-        while(1);
-    }
+    fprintf(stderr, "\n------\n"
+                    "Fail:\t%s\n"
+                    "File:\t%s\n"
+                    "Line:\t%u\n"
+                    "Function:\t%s\n\n"
+                    "Node:\t0x%08X\n"
+                    "Size:\t%u\n"
+                    "------\n",
+                        assertion,
+                        file,
+                        line,
+                        function,
+                        node,
+                        (node ? node->size : 0));
+    while(1);
+}
 
-    if(node && GET_BLOCKSIZE(node) > _a_heapsize)
-    {
-        printf("\"%s\" (l.%u) Block 0x%08LX size %u > heap size %u %d!\n", msg, cnt, (uintptr_t)node, node->size, _a_heapsize);
-        _printAllocs(NULL);
-        while(1);
-    }
-
-    if ((node &&
-         (((uint8_t*)node < _a_heapstart) || ((uint8_t*)node > (_a_heapstart + _a_heapsize)))))
-    {
-
-        printf("\"%s\" (l.%u) Block 0x%08LX from beyond the heap!\n", msg, cnt, (uintptr_t)node);
-        _printAllocs(NULL);
-        while(1);
-    }
-
+t_MemNode *guard(t_MemNode *node)
+{
     if (!node)
-        return NULL;
+        return node;
 
-    if ((node->next &&
-         (((uint8_t*)node->next < _a_heapstart) || ((uint8_t*)node->next > (_a_heapstart + _a_heapsize)))))
+    intptr_t size = GET_BLOCKSIZE(node);
+    uintptr_t addr = (uintptr_t)node;
+
+    _assert(node->size != 0, node);
+    _assert(size <= _a_heapsize, node);
+    _assert(addr >= (uintptr_t)_a_heapstart, node);
+    _assert(addr < ((uintptr_t)_a_heapstart + (uintptr_t)_a_heapsize), node);
+
+    if (node->next)
     {
+        node = node->next;
+        size = GET_BLOCKSIZE(node);
+        addr = (uintptr_t)node;
 
-        printf("\"%s\" (l.%u) Next block from beyond the heap %u!\n", msg, cnt);
-        _printAllocs(NULL);
-        while(1);
+        _assert(node->size != 0, node);
+        _assert(size <= _a_heapsize, node);
+        _assert(addr >= (uintptr_t)_a_heapstart, node);
+        _assert(addr < ((uintptr_t)_a_heapstart + (uintptr_t)_a_heapsize), node);
     }
-
 
     return node->next;
 }
 
 uintptr_t _abs(intptr_t v)
 {
-    intptr_t const mask = v >> sizeof(intptr_t) * 8 - 1;
+    intptr_t const mask = v >> sizeof(intptr_t) * CHAR_BIT - 1;
     return (v + mask) ^ mask;
 }
 
@@ -92,13 +106,14 @@ void __attribute__((weak)) _acopymem(t_MemNode *dest, t_MemNode *src)
  */
 static t_MemNode *_joinBlocks(t_MemNode *src, t_MemNode *nxt)
 {
+  size_t newsize;
   if ((nxt && src->next == nxt) &&
       ((BLOCK_ISUSED(src) && BLOCK_ISFREE(nxt)) ||
        (BLOCK_ISFREE(src) && BLOCK_ISFREE(nxt))))
   {
+    newsize = GET_BLOCKSIZE(src) + GET_BLOCKSIZE(nxt);
     src->next = nxt->next;
-    SET_BLOCKSIZE(src, GET_BLOCKSIZE(src) + GET_BLOCKSIZE(nxt));
-
+    SET_BLOCKSIZE(src, newsize);
   }
   return src;
 }
@@ -122,8 +137,10 @@ static t_MemNode *_splitBlock(t_MemNode *src, size_t offset)
 
   if(src && offset > 0)
   {
-      size1 = offset + SSIZE;
-      size2 = GET_BLOCKSIZE(src) - (offset + SSIZE);
+      size1 = offset;
+      if (size1 % ALLOCATOR_ALIGNMENT)
+          size1 = size1 + ALLOCATOR_ALIGNMENT - (size1 % ALLOCATOR_ALIGNMENT);
+      size2 = GET_BLOCKSIZE(src) - size1;
 
       if (size2 > SSIZE)
       {
@@ -149,18 +166,16 @@ static t_MemNode *_splitBlock(t_MemNode *src, size_t offset)
  */
 static void _tieAdjacent(t_MemNode *start, t_MemNode *node)
 {
+  start = (start ? start : firstblock);
   t_MemNode *ntmp = start;
+  guard(start);
 
-  while(start != node)
+
+  while(start && start != node)
   {
-      guard(start, __func__, __LINE__);
+
       ntmp = start->next;
-      guard(ntmp, __func__, __LINE__);
-      if (ntmp == NULL)
-      {
-	lastblock = start;
-	break;
-      }
+      guard(ntmp);
 
       if (BLOCK_ISFREE(start))
 	 start = _joinBlocks(start, ntmp);
@@ -184,16 +199,19 @@ t_MemNode *_findSmallestFit(size_t size)
     uint32_t foundsize = _a_heapsize + 1;
     t_MemNode *node = firstblock, *found = NULL;
 
+    if (size > _a_heapsize)
+        return found;
+
     while(node)
     {
-        guard(node, __func__, __LINE__);
-        if (BLOCK_ISFREE(node) && size <= GET_BLOCKSIZE(node) && GET_BLOCKSIZE(node) < foundsize)
+        if (BLOCK_ISFREE(node) && GET_BLOCKSIZE(node) < foundsize && size <= GET_BLOCKSIZE(node))
         {
 	  found = node;
           foundsize = GET_BLOCKSIZE(node);
         }
         node = node->next;
     }
+    guard(node);
     return found;
 }
 
@@ -223,8 +241,7 @@ void *_amalloc(size_t size)
         firstblock = (t_MemNode*) _a_heapstart;
         firstblock->next = NULL;
         SET_BLOCKFREE(firstblock, _a_heapsize);
-        lastblock = firstblock;
-        guard(firstblock, __func__, __LINE__);
+        guard(firstblock);
     }
 
 
@@ -232,6 +249,7 @@ void *_amalloc(size_t size)
         return (void*)OFFSET(firstblock, SSIZE);
 
     size += SSIZE;
+    size = ALIGN(size);
 
     node = _findSmallestFit(size);
     if (!node)
@@ -239,18 +257,15 @@ void *_amalloc(size_t size)
         _tieAdjacent(firstblock, NULL);
         node = _findSmallestFit(size);
     }
-    guard(node, __func__, __LINE__);
-    if (node)
-    {
-        sizediff = GET_BLOCKSIZE(node) - size;
-        if (sizediff > SSIZE)
-        {
-            node = _splitBlock(node, size);
-            MARK_BLOCKUSED(node);
-            guard(node, __func__, __LINE__);
-        }
+    guard(node);
+
+     if (node)
+     {
+        MARK_BLOCKUSED(node);
+        node = _splitBlock(node, size);
+        guard(node);
         return (void*)OFFSET(node, SSIZE);
-    }
+     }
 
     return NULL;
 }
@@ -275,9 +290,9 @@ void _afree(uintptr_t *mem)
 
     if (node && BLOCK_ISUSED(node))
     {
-        guard(node, __func__, __LINE__);
+        guard(node);
         MARK_BLOCKFREE(node);
-        _tieAdjacent(firstblock, node->next);
+        _tieAdjacent(firstblock, NULL);
     }
 
 }
@@ -302,8 +317,8 @@ void _afree(uintptr_t *mem)
 void *_arealloc(uintptr_t *ptr, size_t size)
 {
   t_MemNode *node = (t_MemNode*) OFFSET(ptr, -SSIZE), *nextnode;
-  size_t sizesum, tmpsize;
-  guard(node, __func__, __LINE__);
+
+  guard(node);
 
   if (size == 0 && ptr)
   {
@@ -320,23 +335,13 @@ void *_arealloc(uintptr_t *ptr, size_t size)
 
   nextnode = node;
   size += SSIZE;
+  size = ALIGN(size);
 
-  if (size < GET_BLOCKSIZE(node))
-      return OFFSET(node, SSIZE);
 
-  //if next block is free & we fit in joined blocks
-  guard(node, __func__, __LINE__);
-  nextnode = node->next;
-  if(nextnode && BLOCK_ISFREE(nextnode))
+  if (GET_BLOCKSIZE(node) >= size)
   {
-      tmpsize = GET_BLOCKSIZE(node);
-      if ((tmpsize + GET_BLOCKSIZE(nextnode)) > (tmpsize + size))
-      {
-          node = _joinBlocks(node, nextnode);
-           if ((GET_BLOCKSIZE(node) - size) > SSIZE)
-             node = _splitBlock(node, size);
-          return (void*)OFFSET(node, SSIZE);
-      }
+      node = _splitBlock(node, size);
+      return (void*) OFFSET(node, SSIZE);
   }
 
   //otherwise try to find new block to fit
@@ -345,7 +350,7 @@ void *_arealloc(uintptr_t *ptr, size_t size)
   {
     nextnode = (t_MemNode*)OFFSET(nextnode, -SSIZE);
 
-    guard(nextnode, __func__, __LINE__);
+    guard(nextnode);
     _acopymem(nextnode, node);
 
     _afree((uintptr_t*)OFFSET(node, SSIZE));
@@ -370,18 +375,21 @@ void _printAllocs(uintptr_t *ptr)
 
     while(node)
     {
-        guard(node, __func__, __LINE__);
+        guard(node);
         if (cmp == node || !cmp)
-        PRINT("#%d\t0x%X\tAddress: 0x%08X Next: 0x%08X\tSize: %u/%u\t%s %s\n",
-							cnt,
-							((char*) OFFSET(node, SSIZE))[0],
-                                                        (uintptr_t)node,
-                                                        (uintptr_t)node->next,
-                                                        (GET_BLOCKSIZE(node) - sizeof(t_MemNode)),
-                                                        GET_BLOCKSIZE(node),
-                                                        BLOCK_ISFREE(node) ? "Free" : "Used",
-                                                        (cmp ? (cmp == node ? "*" : "") : "")
-             );
+        PRINT("#%d\t'%c'\t"
+              "Address: 0x%08X %d Next: 0x%08X\t"
+              "Size: %u/%u\t"
+              "%s %s\n",
+                        cnt,
+                        ((char*) OFFSET(node, SSIZE))[0],
+                        (uintptr_t)node,
+                        (uintptr_t)node % ALLOCATOR_ALIGNMENT,
+                        (uintptr_t)node->next,
+                        (GET_BLOCKSIZE(node) - sizeof(t_MemNode)),
+                        GET_BLOCKSIZE(node),
+                        BLOCK_ISFREE(node) ? "Free" : "Used",
+                        (cmp ? (cmp == node ? "*" : "") : ""));
         if (BLOCK_ISFREE(node))
 	{
             freesize += (GET_BLOCKSIZE(node) - SSIZE);
@@ -403,16 +411,19 @@ void _printAllocs(uintptr_t *ptr)
         node = node->next;
     }
     if(!cmp)
-    PRINT("\nSummary:\n\tMemory size: %u in %d blocks, %d (%u/%u) blocks free"
-           " %d (%u/%u) used.\n\t%u bytes used for list representation\n\tFirst block 0x%08LX, last block 0x%08LX\n\n",
-								      _a_heapsize,
-                                                                      cnt,
-                                                                      freecnt,
-								      freesize, rawfree,
-								      alloccnt,
-								      allocsize, rawalloc,
-								      (rawfree + rawalloc) - (freesize + allocsize),
-								      (uintptr_t)firstblock, (uintptr_t)lastblock);
+    PRINT("\nSummary:\n\t"
+          "Memory size: %u in %d blocks\n"
+          "\t%d blocks (%u/%u) free,%d blocks (%u/%u) used.\n"
+          "\t%u bytes used for list representation\n"
+          "\tFirst block 0x%08LX\n\n",
+                                    _a_heapsize,
+                                    cnt,
+                                    freecnt,
+                                    freesize, rawfree,
+                                    alloccnt,
+                                    allocsize, rawalloc,
+                                    (rawfree + rawalloc) - (freesize + allocsize),
+                                    (uintptr_t)firstblock);
 }
 #else
 void __attribute__((weak)) _printAllocs(void)

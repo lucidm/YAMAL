@@ -4,23 +4,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/*! \def ALLOCATOR_ALIGNMENT
- * \brief Alignment of memory addres
- */
-#define ALLOCATOR_ALIGNMENT 4
-
-/*! \def ALLOCATOR_USEREPORT
- * \brief Comment this def out if don't want _printAllocs() function
- * in your code. Or add -DALLOCATOR_USEREPORT
- */
-//#define ALLOCATOR_USEREPORT
-
-#define OFFSET(block, offset) ((uintptr_t)block + (offset))
-#define SSIZE (sizeof(t_MemNode))
-
 #ifdef _cplusplus
 extern "C" {
 #endif
+
+typedef struct _mem_node t_MemNode;
 
 //Below are two variables declared, which should be defined as globals in code using this lib,
 //they cannot be declared as static and should be initialized prior to
@@ -36,46 +24,18 @@ extern uint8_t *_a_heapstart;
  */
 extern size_t _a_heapsize;
 
-/*! \def ALIGN(to, number)
- * \brief Return a "number" aligned to value "a"
- *
- * Used to align addresses of memory with given alignment if
- * used architecture requires it.
+/*! \def ALLOCATOR_ALIGNMENT
+ * \brief Alignment of memory addres
  */
-#define ALIGN(number) ((number + ALLOCATOR_ALIGNMENT) & (~ALLOCATOR_ALIGNMENT))
+#define ALLOCATOR_ALIGNMENT 4
 
-#ifdef ALLOCATOR_USEREPORT
-/*! \def PRINT
- * \brief Change this to something else which will work like printf
- * if you're using this lib in embedded env, like "trace_printf" for
- * example. Used in _printAllocs().
+
+/*! \def ALLOCATOR_USEREPORT
+ * \brief Comment this def out if don't want _printAllocs() function
+ * in your code. Or add -DALLOCATOR_USEREPORT
  */
-#define PRINT printf
-#endif
+#define ALLOCATOR_USEREPORT
 
-/*! \def BLOCK_FREE
- * \brief Marking of block which is free and available for allocation
- */
-#define BLOCK_FREE 0
-
-#define MARK_BLOCKFREE(node) ((node->size > 0) ? (node->size * (-1)) : (node->size))
-#define MARK_BLOCKUSED(node) (_abs(node->size))
-#define SET_BLOCKFREE(node, isize) node->size = -isize
-#define SET_BLOCKUSED(node, isize) node->size = isize
-
-#define BLOCK_ISFREE(node) (node->size < 0)
-#define BLOCK_ISUSED(node) (node->size > 0)
-
-#define GET_BLOCKSIZE(node) (_abs(node->size))
-#define SET_BLOCKSIZE(node, isize) (node->size = (node->size > 0 ? _abs(isize) : isize * (-1)))
-
-typedef struct _mem_node t_MemNode;
-
-typedef struct _mem_node
-{
-    t_MemNode *next;
-    intptr_t  size;
-} __attribute__((packed)) t_MemNode;
 
 /*! \fn void *_amalloc(size_t size)
  * \brief Memory allocation function.
@@ -102,8 +62,6 @@ void __attribute__((weak)) _acopymem(t_MemNode *dest, t_MemNode *src);
  * \brief Prints current memory usage and statistics.
  */
 void _printAllocs(uintptr_t *ptr);
-
-uintptr_t _abs(intptr_t v);
 
 #ifdef _cplusplus
 }

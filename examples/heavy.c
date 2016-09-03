@@ -1,43 +1,13 @@
-#include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
-#include <malloc.h>
-#include <allocator.h>
-#include <time.h>
+#include <testlib.h>
 
-#define MEMSIZE (16*1024)
-
-#define MAXALLOCATIONS 25
-#define MAXSIZE (MEMSIZE / MAXALLOCATIONS)
-
-uintptr_t* allocations[MAXALLOCATIONS];
-uint16_t rn[MAXALLOCATIONS];
-
-int randr(int min, int max)
-{
-    return (rand() % max) + min;
-}
-
-void init()
-{
-    for(int i=0; i<MAXALLOCATIONS; i++)
-	rn[i] = i;
-}
-
-void shuffle()
-{
-    for(int i = MAXALLOCATIONS-1; i > 0; i--)
-    {
-	int j = randr(0, i+1);
-	int tmp = rn[j];
-        rn[j] = rn[i];
-	rn[i] = tmp;
-    }
-}
+#define MEMSIZE 16384
 
 uint8_t *_a_heapstart;
 size_t _a_heapsize;
-uint32_t s = 0, ccnt = 0;
+size_t maxallocations;
+
+uint32_t ccnt = 0;
 uintptr_t *p, *a;
 
 int main(void)
@@ -46,61 +16,52 @@ int main(void)
     _a_heapstart = malloc(MEMSIZE);
     _a_heapsize = MEMSIZE;
 
-    init();
-    shuffle();
+    maxallocations = 200;
+
+    init(maxallocations);
     _amalloc(0);
     _printAllocs(NULL);
 
-    while(ccnt < 8)
+    uint32_t blocks = maxallocations / 2;
+
+    while(ccnt < 20000)
     {
-        printf("Trying to alloc %d blocks with various size\n", MAXALLOCATIONS);
-        for(int i=0; i<MAXALLOCATIONS; i++)
-        {
-            s = randr(10,MAXSIZE);
-            allocations[i] = _amalloc(s);
-            if(allocations[i] == NULL)
-                printf("Cannot alloc block %u %u\n", i, s);
-        }
-        _printAllocs(NULL);
-        printf("Press <enter> to realloc blocks\n");
-        getchar();
+        blocks = randr(10, blocks);
+        printf("Iteration %d mem %u max block size %u\n", ccnt+1, MEMSIZE, (MEMSIZE / blocks));
 
-        printf("Trying realloc allocated blocks with various size\n");
-        for(int i=0; i<MAXALLOCATIONS; i++)
-        {
-            s = randr(10,MAXSIZE);
-            p = a =_arealloc(allocations[i], s);
-            if(p)
-            {
-                if (p == allocations[i])
-                {
-                    printf("Same block reused\n");
-                } else if (p!=NULL && p!=allocations[i])
-                {
-                    printf("Old address 0x%08LX, new address 0x%08LX\n", OFFSET(allocations[i], -SSIZE), OFFSET(p, -SSIZE));
-                    _printAllocs(a);
-                    _printAllocs(allocations[i]);
-                    _printAllocs(p);
-                    allocations[i] = p;
-                }
-            }else
-                printf("Cannot realloc block\n");
+        printf("Trying to alloc %d blocks with various size...", maxallocations);
+        if(!allocateblocks(blocks))
+            _printAllocs(NULL);
+        printf("done.\n");
 
-        }
-        _printAllocs(NULL);
-        printf("Press <enter> to free all blocks\n");
-        getchar();
+        printf("Checking consistency...");
+        if (!consistency(blocks))
+            _printAllocs(NULL);
+        printf("done.\n");
 
-        printf("Trying to free all allocated blocks\n");
-        for(int i=0; i<MAXALLOCATIONS; i++)
-            if(allocations[i]) _afree(allocations[i]);
+        printf("Matching pattern...");
+        if (!patternmatching(blocks))
+            _printAllocs(NULL);
+        printf("done.\n");
+
+        printf("Trying realloc...");
+        if (!reallocblocks(blocks))
+            _printAllocs(NULL);
+        printf("done.\n");
+
+        printf("Matching pattern...");
+        if (!patternmatching(blocks))
+            _printAllocs(NULL);
+        printf("done.\n");
+
+        printf("Trying to free all allocated blocks...");
+        freeblocks(blocks);
+        printf("done.\n\n");
+
         ccnt++;
-        _printAllocs(NULL);
-        printf("Press <enter> to continue\n");
-        getchar();
-
     }
-
+    _printAllocs(NULL);
+    deinit();
     free(_a_heapstart);
     return 0;
 }
