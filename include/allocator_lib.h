@@ -35,7 +35,7 @@ typedef struct _mem_node t_MemNode;
    ? __ASSERT_VOID_CAST (0)						\
    : _assert_fail (#expr, __FILE__, __LINE__, __ASSERT_FUNCTION, NODE))
 #else
-#define _assert(exp, node) (expr)
+#define _assert(expr, node) (expr)
 #endif
 
 /*! \def ALIGN(number)
@@ -48,12 +48,12 @@ typedef struct _mem_node t_MemNode;
         ((NUMBER + ALLOCATOR_ALIGNMENT) - (NUMBER % ALLOCATOR_ALIGNMENT)) : NUMBER);
 
 #ifdef ALLOCATOR_USEREPORT
-/*! \def PRINT
+/*! \def tprintf(format, ...)
  * \brief Change this to something else which will work like printf
  * if you're using this lib in embedded env, like "trace_printf" for
  * example. Used in _printAllocs().
  */
-#define PRINT printf
+#define tprintf(format, ...) fprintf(stderr, format, __VA_ARGS__)
 #endif
 
 

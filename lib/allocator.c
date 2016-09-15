@@ -29,20 +29,20 @@ void _assert_fail(const char *assertion,
                   t_MemNode *node
                  )
 {
-    fprintf(stderr, "\n------\n"
-                    "Fail:\t%s\n"
-                    "File:\t%s\n"
-                    "Line:\t%u\n"
-                    "Function:\t%s\n\n"
-                    "Node:\t0x%08X\n"
-                    "Size:\t%u\n"
-                    "------\n",
-                        assertion,
-                        file,
-                        line,
-                        function,
-                        node,
-                        (node ? node->size : 0));
+    tprintf("\n------\n"
+            "Fail:\t%s\n"
+            "File:\t%s\n"
+            "Line:\t%u\n"
+            "Function:\t%s\n\n"
+            "Node:\t0x%08X\n"
+            "Size:\t%u\n"
+            "------\n",
+                assertion,
+                file,
+                line,
+                function,
+                node,
+                (node ? node->size : 0));
     while(1);
 }
 
@@ -377,10 +377,10 @@ void _printAllocs(uintptr_t *ptr)
     {
         guard(node);
         if (cmp == node || !cmp)
-        PRINT("#%d\t'%c'\t"
-              "Address: 0x%08X %d Next: 0x%08X\t"
-              "Size: %u/%u\t"
-              "%s %s\n",
+        tprintf("#%d\t'%c'\t"
+                "Address: 0x%08X %d Next: 0x%08X\t"
+                "Size: %u/%u\t"
+                "%s %s\n",
                         cnt,
                         ((char*) OFFSET(node, SSIZE))[0],
                         (uintptr_t)node,
@@ -390,6 +390,7 @@ void _printAllocs(uintptr_t *ptr)
                         GET_BLOCKSIZE(node),
                         BLOCK_ISFREE(node) ? "Free" : "Used",
                         (cmp ? (cmp == node ? "*" : "") : ""));
+
         if (BLOCK_ISFREE(node))
 	{
             freesize += (GET_BLOCKSIZE(node) - SSIZE);
@@ -411,7 +412,7 @@ void _printAllocs(uintptr_t *ptr)
         node = node->next;
     }
     if(!cmp)
-    PRINT("\nSummary:\n\t"
+    tprintf("\nSummary:\n\t"
           "Memory size: %u in %d blocks\n"
           "\t%d blocks (%u/%u) free,%d blocks (%u/%u) used.\n"
           "\t%u bytes used for list representation\n"
