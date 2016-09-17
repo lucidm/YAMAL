@@ -56,3 +56,5 @@ allocator.c is the main code of library which requires allocator.h and allocator
 ## Do I really need it?
 Not really :), there are many other implementations of malloc in various versions of standard C library. For example newlib use [sbrk()](https://en.wikipedia.org/wiki/Sbrk) function which is really simple and fast as this is simply addtion and substraction with additional heap crossing borders checking. YAMAL however, is not any new invention, it was made just for better than sbrk() maintenace of memory allocation. There are plenty of other libraries available making same functions as YAMAL do, or even using same or more advanced principles. Just try them and find what suits you.
 
+## License
+YAMAL is released under [**MIT**](https://opensource.org/licenses/MIT) license
