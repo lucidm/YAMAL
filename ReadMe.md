@@ -51,7 +51,7 @@ You only need three files:
 - **allocator.h** - library header with library API for use in your application
 - **allocator_lib.h** - header specifically used in library only. Just for separating library internals from library API.
 
-allocator.c is the main code of library which requires allocator.h and allocator_lib.h making complete library you can later link to your code. Pleas check makefile in project directory how it all fits together.
+allocator.c is the main code of library which requires allocator.h and allocator_lib.h making complete library you can later link to your code. Please check makefile in project directory how it all fits together.
 
 ## Do I really need it?
 Not really :), there are many other implementations of malloc in various versions of standard C library. For example newlib use [sbrk()](https://en.wikipedia.org/wiki/Sbrk) function which is really simple and fast as this is simply addtion and substraction with additional heap crossing borders checking. YAMAL however, is not any new invention, it was made just for better than sbrk() maintenace of memory allocation. There are plenty of other libraries available making same functions as YAMAL do, or even using same or more advanced principles. Just try them and find what suits you.
